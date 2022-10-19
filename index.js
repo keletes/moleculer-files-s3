@@ -5,7 +5,7 @@ const uuidv4 = require("uuid/v4");
 const isStream = require("is-stream");
 const Minio = require("minio");
 
-class FSAdapter {
+class S3Adapter {
 
 	constructor(endpoint, accessKey, secretKey, opts) {
 	  this.endpoint = endpoint;
@@ -131,4 +131,4 @@ class FSAdapter {
 	}
 }
 
-module.exports = FSAdapter;
+module.exports = S3Adapter;
