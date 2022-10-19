@@ -1,0 +1,24 @@
+{
+  "name": "moleculer-files-s3",
+  "version": "0.0.1",
+  "description": "S3 driver for moleculer-files, based on MinIO",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "moleculer",
+    "moleculer-files",
+    "filesystem"
+  ],
+  "author": "Daniele Draganti",
+  "license": "MIT",
+  "dependencies": {
+    "is-stream": "^3.0.0",
+    "minio": "^7.0.32",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "moleculer": "^0.13.10"
+  }
+}
