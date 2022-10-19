@@ -16,7 +16,7 @@
   "dependencies": {
     "is-stream": "^3.0.0",
     "minio": "^7.0.32",
-    "uuid": "^9.0.0"
+    "uuid": "^3.3.3"
   },
   "devDependencies": {
     "moleculer": "^0.13.10"
