@@ -60,11 +60,14 @@ class S3Adapter {
 				pathStyle
 			});
 			const exists = await this.client.bucketExists(this.collection);
-			if (!exists && !!this.opts.createBucket) {
-				await this.client.createBucket(this.collection);
+			if (!exists) {
+				if (!!this.opts.createBucket)
+					return await this.client.makeBucket(this.collection);
+				else
+					throw new ServiceSchemaError(`The specified bucket '${this.collection}' does not exist!`);
 			}
 		} catch(err) {
-			this.service.logger.error("S3 error.", err);
+			this.service.logger.error('S3 error.', err);
 			throw err;
 		}
 	}
@@ -83,11 +86,14 @@ class S3Adapter {
 				stream.on('data', (obj) => { items.push(obj); } );
 				stream.on('end',  () => { resolve(data); });
 				stream.on('error', (err) => {
+					if (err.code == 'NoSuchKey')
+						return resolve(items);
 					this.service.logger.error('Error during find operation in S3 bucket.', err);
 					reject(err);
 				})
-			} catch (error) {
-				reject(error);
+			} catch (err) {
+				this.service.logger.error('Error during find operation in S3 bucket.', err);
+				reject(err);
 			}
 		});
 	}
@@ -97,7 +103,13 @@ class S3Adapter {
 		return;
 	}
 
-	findById(fd) {
+	async findById(fd) {
+		try {
+			const exists = await this.client.statObject(this.collection, fd);
+			if (!exists) return null;
+		} catch(err) {
+			return null;
+		}
 		return this.client.getObject(this.collection, fd);
 	}
 
@@ -107,10 +119,14 @@ class S3Adapter {
 	}
 
 	async save(entity, meta) {
-		if (!isStream(entity)) reject(new MoleculerError("Entity is not a stream", 400, "E_BAD_REQUEST"));
-
-		const filename = meta.id || meta.filename || uuidv4();
-		return this.client.putObject(this.collection, filename, entity, null, meta);
+		if (!isStream(entity)) throw new MoleculerError("Entity is not a stream", 400, "E_BAD_REQUEST");
+		try {
+			const filename = meta.id || meta.filename || uuidv4();
+			return this.client.putObject(this.collection, filename, entity, null, meta);
+		} catch(err) {
+			this.service.logger.error('Error during find operation in S3 bucket.', err);
+			throw err;
+		}
 	}
 
 	async updateById(entity, meta) {
