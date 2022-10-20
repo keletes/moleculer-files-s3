@@ -14,7 +14,7 @@
   "author": "Daniele Draganti",
   "license": "MIT",
   "dependencies": {
-    "is-stream": "^3.0.0",
+    "is-stream": "^2.0.0",
     "minio": "^7.0.32",
     "uuid": "^3.3.3"
   },
