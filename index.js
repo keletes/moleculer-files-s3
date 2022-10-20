@@ -18,14 +18,14 @@ class S3Adapter {
 		this.broker = broker;
 		this.service = service;
 
-		if (!this.uri) {
-  		throw new ServiceSchemaError("Missing `uri` definition!");
+		if (!this.endpoint) {
+  		throw new ServiceSchemaError("Missing `endpoint` definition!");
     }
 		if (!this.accessKey) {
-			throw new ServiceSchemaError("Missing S3 access key!");
+			throw new ServiceSchemaError("Missing `accessKey` definition!");
 		}
 		if (!this.secretKey) {
-			throw new ServiceSchemaError("Missing S3 secret key!");
+			throw new ServiceSchemaError("Missing `secretKey` definition!");
 		}
 
 		if (!this.service.schema.collection) {
