@@ -7,8 +7,8 @@ const Minio = require("minio");
 
 class S3Adapter {
 
-	constructor(endpoint, accessKey, secretKey, opts) {
-	  this.endpoint = endpoint;
+	constructor(endPoint, accessKey, secretKey, opts) {
+	  this.endPoint = endPoint;
 		this.opts = opts;
 		this.accessKey = accessKey;
 		this.secretKey = secretKey;
@@ -18,8 +18,8 @@ class S3Adapter {
 		this.broker = broker;
 		this.service = service;
 
-		if (!this.endpoint) {
-  		throw new ServiceSchemaError("Missing `endpoint` definition!");
+		if (!this.endPoint) {
+  		throw new ServiceSchemaError("Missing `endPoint` definition!");
     }
 		if (!this.accessKey) {
 			throw new ServiceSchemaError("Missing `accessKey` definition!");
@@ -36,7 +36,7 @@ class S3Adapter {
 	}
 
 	async connect() {
-		const {endpoint, accessKey, secretKey} = this;
+		const {endPoint, accessKey, secretKey} = this;
 		const {
 			port,
 			useSSL,
@@ -48,8 +48,8 @@ class S3Adapter {
 		} = this.opts;
 		try {
 			this.client = new Minio.Client({
-				endpoint,
-				port,
+				endPoint,
+				port: parseInt(port),
 				useSSL,
 				accessKey,
 				secretKey,
