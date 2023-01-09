@@ -98,7 +98,14 @@ class S3Adapter {
 	}
 
 	findById(fd) {
-		return this.client.getObject(this.collection, fd);
+		try {
+			return this.client.getObject(this.collection, fd);
+		} catch(err) {
+			if (err.code == 'NoSuchKey') {
+				throw new MoleculerError(`File \`${fd}\` not found`, 404, "ERR_NOT_FOUND");
+			}
+			throw err;
+		}
 	}
 
 	async count(filters = {}) {
