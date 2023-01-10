@@ -61,7 +61,7 @@ class S3Adapter {
 			});
 			const exists = await this.client.bucketExists(this.collection);
 			if (!exists && !!this.opts.createBucket) {
-				await this.client.makeBucket(this.collection);
+				this.client.makeBucket(this.collection);
 			}
 		} catch(err) {
 			this.service.logger.error("S3 error.", err);
@@ -98,14 +98,17 @@ class S3Adapter {
 	}
 
 	findById(fd) {
-		try {
-			return this.client.getObject(this.collection, fd);
-		} catch(err) {
-			if (err.code == 'NoSuchKey') {
-				throw new MoleculerError(`File \`${fd}\` not found`, 404, "ERR_NOT_FOUND");
-			}
-			throw err;
-		}
+		return new Promise((resolve, reject) => {
+			this.client.getObject(this.collection, fd, (err, stream) => {
+				if (err) {
+					if (err.code == 'NoSuchKey') {
+						return reject(new MoleculerError(`File \`${fd}\` not found`, 404, "ERR_NOT_FOUND"));
+					}
+					return reject(err);
+				};
+				return resolve(stream);
+			});
+		})
 	}
 
 	async count(filters = {}) {
