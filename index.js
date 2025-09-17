@@ -102,7 +102,7 @@ class S3Adapter {
 			this.client.getObject(this.collection, fd, (err, stream) => {
 				if (err) {
 					if (err.code == 'NoSuchKey') {
-						return reject(new MoleculerError(`File \`${fd}\` not found`, 404, "ERR_NOT_FOUND"));
+						return resolve();
 					}
 					return reject(err);
 				};
