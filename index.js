@@ -1,12 +1,11 @@
-"use strict";
+'use strict';
 
-const { MoleculerError, ServiceSchemaError } = require("moleculer").Errors;
-const uuidv4 = require("uuid/v4");
-const isStream = require("is-stream");
-const Minio = require("minio");
+const { MoleculerError, ServiceSchemaError } = require('moleculer').Errors;
+const uuidv4 = require('uuid/v4');
+const isStream = require('is-stream');
+const Minio = require('minio');
 
 class S3Adapter {
-
 	constructor(endpoint, accessKey, secretKey, opts) {
 		this.endPoint = endpoint;
 		this.opts = opts;
@@ -19,24 +18,26 @@ class S3Adapter {
 		this.service = service;
 
 		if (!this.endPoint) {
-			throw new ServiceSchemaError("Missing `endPoint` definition!");
+			throw new ServiceSchemaError('Missing `endPoint` definition!');
 		}
 		if (!this.accessKey) {
-			throw new ServiceSchemaError("Missing `accessKey` definition!");
+			throw new ServiceSchemaError('Missing `accessKey` definition!');
 		}
 		if (!this.secretKey) {
-			throw new ServiceSchemaError("Missing `secretKey` definition!");
+			throw new ServiceSchemaError('Missing `secretKey` definition!');
 		}
 
 		if (!this.service.schema.collection) {
 			/* istanbul ignore next */
-			throw new ServiceSchemaError("Missing `collection` definition in schema of service!");
+			throw new ServiceSchemaError(
+				'Missing `collection` definition in schema of service!',
+			);
 		}
 		this.collection = this.service.schema.collection;
 	}
 
 	async connect() {
-		const {endPoint, accessKey, secretKey} = this;
+		const { endPoint, accessKey, secretKey } = this;
 		const {
 			port,
 			useSSL,
@@ -44,7 +45,7 @@ class S3Adapter {
 			region,
 			transport,
 			partSize,
-			pathStyle
+			pathStyle,
 		} = this.opts;
 		try {
 			this.client = new Minio.Client({
@@ -57,14 +58,14 @@ class S3Adapter {
 				region,
 				transport,
 				partSize,
-				pathStyle
+				pathStyle,
 			});
 			const exists = await this.client.bucketExists(this.collection);
 			if (!exists && !!this.opts.createBucket) {
 				this.client.makeBucket(this.collection);
 			}
-		} catch(err) {
-			this.service.logger.error("S3 error.", err);
+		} catch (err) {
+			this.service.logger.error('S3 error.', err);
 			throw err;
 		}
 	}
@@ -75,17 +76,30 @@ class S3Adapter {
 
 	async find(filters) {
 		if (filters)
-			this.service.logger.warn('Filters not yet implemented for S3 driver.');
+			this.service.logger.warn(
+				'Filters not yet implemented for S3 driver.',
+			);
 		return new Promise((resolve, reject) => {
 			try {
 				const items = [];
-				const stream = this.client.listObjects(this.collection, '', true);
-				stream.on('data', (obj) => { items.push(obj); } );
-				stream.on('end',  () => { resolve(data); });
+				const stream = this.client.listObjects(
+					this.collection,
+					'',
+					true,
+				);
+				stream.on('data', (obj) => {
+					items.push(obj);
+				});
+				stream.on('end', () => {
+					resolve(data);
+				});
 				stream.on('error', (err) => {
-					this.service.logger.error('Error during find operation in S3 bucket.', err);
+					this.service.logger.error(
+						'Error during find operation in S3 bucket.',
+						err,
+					);
 					reject(err);
-				})
+				});
 			} catch (error) {
 				reject(error);
 			}
@@ -105,10 +119,10 @@ class S3Adapter {
 						return resolve();
 					}
 					return reject(err);
-				};
+				}
 				return resolve(stream);
 			});
-		})
+		});
 	}
 
 	async count(filters = {}) {
@@ -117,10 +131,21 @@ class S3Adapter {
 	}
 
 	async save(entity, meta) {
-		if (!isStream(entity)) reject(new MoleculerError("Entity is not a stream", 400, "E_BAD_REQUEST"));
+		if (!isStream(entity))
+			throw new new MoleculerError(
+				'Entity is not a stream',
+				400,
+				'E_BAD_REQUEST',
+			)();
 
 		const filename = meta.id || meta.filename || uuidv4();
-		return this.client.putObject(this.collection, filename, entity, null, meta);
+		return this.client.putObject(
+			this.collection,
+			filename,
+			entity,
+			null,
+			meta,
+		);
 	}
 
 	async updateById(entity, meta) {
