@@ -1,6 +1,6 @@
 {
 	"name": "moleculer-files-s3",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"description": "S3 driver for moleculer-files, based on MinIO",
 	"main": "index.js",
 	"scripts": {

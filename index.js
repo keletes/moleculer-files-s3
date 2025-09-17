@@ -132,7 +132,7 @@ class S3Adapter {
 
 	async save(entity, meta) {
 		if (!isStream(entity))
-			throw new new MoleculerError(
+			throw new MoleculerError(
 				'Entity is not a stream',
 				400,
 				'E_BAD_REQUEST',
