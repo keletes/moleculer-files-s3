@@ -1,0 +1,47 @@
+name: Tag release
+
+# Trunk-based release: every push to main runs semantic-release, which parses the Conventional Commit messages since
+# the last release (see pr-title.yml and CLAUDE.md) to decide whether and what to release. When it does:
+#   1. `yarn build` regenerates dist/ (prepareCmd in .releaserc.json)
+#   2. package.json and dist/ are committed as `chore(release): X.Y.Z [skip ci]` (the commit consumers install)
+#   3. the vX.Y.Z tag is created on that commit and a GitHub Release is published
+#
+# Pushing to a protected branch needs the GitHub App installation token (same org-level DEPLOY_APP_ID /
+# DEPLOY_APP_PRIVATE_KEY secrets as the services), not GITHUB_TOKEN; checkout must be authenticated with it up front.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Mint GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.DEPLOY_APP_ID }}
+          private-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          owner: keletes
+          repositories: ${{ github.event.repository.name }}
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      # Public repo and no private packages: no PACKAGES_READ_PAT step.
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Release
+        run: yarn semantic-release
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
