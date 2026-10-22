@@ -1,6 +1,6 @@
 {
 	"name": "moleculer-files-s3",
-	"version": "0.0.0",
+	"version": "0.2.0",
 	"description": "S3 driver for moleculer-files (MinIO client), TypeScript",
 	"license": "MIT",
 	"main": "dist/index.js",
