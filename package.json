@@ -48,7 +48,7 @@
 		"eslint": "^8.30.0",
 		"jest": "^29.3.1",
 		"moleculer": "^0.14.32",
-		"moleculer-files": "git+https://github.com/keletes/moleculer-files#preview/typescript-modernisation-dist",
+		"moleculer-files": "git+https://github.com/keletes/moleculer-files#v0.2.0",
 		"semantic-release": "^25.0.9",
 		"ts-jest": "^29.0.3",
 		"typescript": "^5.0.0"
