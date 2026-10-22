@@ -3994,9 +3994,9 @@ minizlib@^3.0.1, minizlib@^3.1.0:
   dependencies:
     minipass "^7.1.2"
 
-"moleculer-files@git+https://github.com/keletes/moleculer-files#feat/typescript-modernisation":
+"moleculer-files@git+https://github.com/keletes/moleculer-files#preview/typescript-modernisation-dist":
   version "0.0.0"
-  resolved "git+https://github.com/keletes/moleculer-files#09f4b8c438a228f3aefdd3d7fd59a695bdc5f9e1"
+  resolved "git+https://github.com/keletes/moleculer-files#c8ae548601defcef5c7e36628e53902ba182d516"
   dependencies:
     lodash.get "^4.4.2"
     lodash.set "^4.3.2"
