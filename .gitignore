@@ -1,7 +1,10 @@
 .DS_Store
+.vscode
 node_modules/
 coverage/
 npm-debug.log
-stats.json
-yarn-error.log
 package-lock.json
+yarn-error.log
+.env
+# Built by `yarn build`; committed only by the release commit (see .releaserc.json), which force-adds it.
+dist/

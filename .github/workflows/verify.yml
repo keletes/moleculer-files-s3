@@ -1,0 +1,75 @@
+name: Verify
+
+# PR gate for main. Required status checks (branch protection): `verify`, `test`.
+#   - verify : typecheck, lint, build, critical-advisory audit
+#   - test   : jest (no external infrastructure: the suite uses an in-memory storage driver)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 22: semantic-release and its plugins (ordinary devDependencies) need it, and yarn 1.x treats an
+      # unmet engines range as a hard install failure.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Build
+        run: yarn build
+
+      - name: Security audit (fail on critical)
+        run: |
+          report=$(yarn audit --json --groups dependencies || true)
+          printf '%s\n' "$report" \
+            | jq -r 'fromjson? | select(.type=="auditAdvisory") | .data.advisory
+                     | "\(.severity)\t\(.module_name) \(.vulnerable_versions) - \(.title) (\(.url))"' \
+            > advisories.txt || true
+          echo "Advisory summary:"; cut -f1 advisories.txt | sort | uniq -c || true
+          crit=$(grep -c '^critical' advisories.txt || true)
+          if [ "${crit:-0}" -gt 0 ]; then
+            echo "::error::${crit} critical advisory/advisories in production dependencies:"
+            grep '^critical' advisories.txt | cut -f2-
+            exit 1
+          fi
+          echo "No critical advisories."
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Test
+        run: yarn test

@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"target": "es2021",
+		"module": "commonjs",
+		"moduleResolution": "node",
+		"lib": ["es2022"],
+		"strict": true,
+		"noImplicitOverride": true,
+		"declaration": true,
+		"sourceMap": true,
+		"outDir": "./dist",
+		"rootDir": "./",
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"types": ["node", "jest"]
+	},
+	"include": ["src/**/*", "test/**/*"]
+}

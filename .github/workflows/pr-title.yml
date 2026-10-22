@@ -1,0 +1,33 @@
+name: PR title
+
+# Enforces Conventional Commits on the PR title. This matters because
+# GitHub's "Squash and merge" uses the PR title as the resulting commit
+# message on main, and that commit message is what semantic-release
+# (tag.yml) parses to decide whether/how to bump the version.
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  lint-pr-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            fix
+            feat
+            chore
+            docs
+            style
+            refactor
+            perf
+            test
+            ci
+            build
