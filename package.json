@@ -1,6 +1,6 @@
 {
-	"name": "moleculer-files-s3",
-	"version": "0.2.0",
+	"name": "@keletes/moleculer-files-s3",
+	"version": "0.0.0-development",
 	"description": "S3 driver for moleculer-files (MinIO client), TypeScript",
 	"license": "MIT",
 	"main": "dist/index.js",
@@ -8,6 +8,9 @@
 	"files": [
 		"dist"
 	],
+	"publishConfig": {
+		"registry": "https://npm.pkg.github.com"
+	},
 	"scripts": {
 		"build": "rm -rf dist && tsc --project tsconfig.build.json",
 		"typecheck": "tsc --noEmit",
@@ -22,21 +25,24 @@
 		"minio"
 	],
 	"author": "Daniele Draganti",
-	"repository": "git@github.com:keletes/moleculer-files-s3.git",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/keletes/moleculer-files-s3.git"
+	},
 	"engines": {
 		"node": ">= 22.x.x"
 	},
 	"peerDependencies": {
-		"moleculer": "^0.14.0",
-		"moleculer-files": "*"
+		"@keletes/moleculer-files": "^0.3.0",
+		"moleculer": "^0.14.0"
 	},
 	"dependencies": {
 		"minio": "^8.0.7"
 	},
 	"devDependencies": {
+		"@keletes/moleculer-files": "^0.3.0",
 		"@semantic-release/commit-analyzer": "^13.0.1",
 		"@semantic-release/exec": "^6.0.3",
-		"@semantic-release/git": "^11.0.1",
 		"@semantic-release/github": "^12.0.9",
 		"@semantic-release/npm": "^13.1.5",
 		"@semantic-release/release-notes-generator": "^14.1.1",
@@ -48,7 +54,6 @@
 		"eslint": "^8.30.0",
 		"jest": "^29.3.1",
 		"moleculer": "^0.14.32",
-		"moleculer-files": "git+https://github.com/keletes/moleculer-files#v0.2.0",
 		"semantic-release": "^25.0.9",
 		"ts-jest": "^29.0.3",
 		"typescript": "^5.0.0"

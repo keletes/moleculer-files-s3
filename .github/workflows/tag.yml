@@ -3,20 +3,24 @@ name: Tag release
 # Trunk-based release: every push to main runs semantic-release, which parses the Conventional Commit messages since
 # the last release (see pr-title.yml and CLAUDE.md) to decide whether and what to release. When it does:
 #   1. `yarn build` regenerates dist/ (prepareCmd in .releaserc.json)
-#   2. package.json and dist/ are committed as `chore(release): X.Y.Z [skip ci]` (the commit consumers install)
-#   3. the vX.Y.Z tag is created on that commit and a GitHub Release is published
+#   2. the vX.Y.Z tag is created and a GitHub Release is published (no release commit is pushed back)
+#   3. the package, with the fresh dist/, is published to GitHub Packages as @keletes/moleculer-files-s3
 #
-# Pushing to a protected branch needs the GitHub App installation token (same org-level DEPLOY_APP_ID /
-# DEPLOY_APP_PRIVATE_KEY secrets as the services), not GITHUB_TOKEN; checkout must be authenticated with it up front.
+# The GitHub App token (org DEPLOY_APP_ID / DEPLOY_APP_PRIVATE_KEY) creates the tag and release; the publish uses
+# the workflow GITHUB_TOKEN (packages: write) as NPM_TOKEN.
 on:
   push:
     branches: [main]
+  # Manual re-run of a release; semantic-release only releases unreleased feat/fix commits from the default branch,
+  # otherwise a no-op.
+  workflow_dispatch:
 
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     steps:
       - name: Mint GitHub App installation token
         id: app-token
@@ -36,12 +40,17 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+          registry-url: https://npm.pkg.github.com
+          scope: '@keletes'
 
-      # Public repo and no private packages: no PACKAGES_READ_PAT step.
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
 
       - name: Release
         run: yarn semantic-release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

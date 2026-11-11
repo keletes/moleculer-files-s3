@@ -1,25 +1,25 @@
-# moleculer-files-s3
+# @keletes/moleculer-files-s3
 
 S3 driver for [`moleculer-files`](https://github.com/keletes/moleculer-files), on the [MinIO JS client](https://github.com/minio/minio-js) (v8), so it works with AWS S3, MinIO,
 DigitalOcean Spaces and any S3-compatible endpoint. TypeScript, compiled output and declarations included.
 
 ## Install
 
-Not on npm; installed from a git tag (compiled output is committed on the release commit, no build step, no auth: the repo is public).
+Published to GitHub Packages (`https://npm.pkg.github.com`) as `@keletes/moleculer-files-s3`, compiled output included. Consumers need `@keletes:registry=https://npm.pkg.github.com` in their `.npmrc` and a token with `read:packages`.
 
 ```json
-"moleculer-files-s3": "git+https://github.com/keletes/moleculer-files-s3.git#vX.Y.Z",
-"moleculer-files": "git+https://github.com/keletes/moleculer-files.git#vX.Y.Z",
+"@keletes/moleculer-files-s3": "^X.Y.Z",
+"@keletes/moleculer-files": "^0.3.0",
 "moleculer": "^0.14.32"
 ```
 
-Node >= 22. `moleculer` and `moleculer-files` are peer dependencies.
+Node >= 22. `moleculer` and `@keletes/moleculer-files` are peer dependencies.
 
 ## Usage
 
 ```ts
-import FilesService from "moleculer-files";
-import S3 from "moleculer-files-s3"; // `require("moleculer-files-s3")` returns the same class
+import FilesService from "@keletes/moleculer-files";
+import S3 from "@keletes/moleculer-files-s3"; // `require("@keletes/moleculer-files-s3")` returns the same class
 
 export default {
 	name: "cache",

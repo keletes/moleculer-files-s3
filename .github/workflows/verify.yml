@@ -28,9 +28,13 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+          registry-url: https://npm.pkg.github.com
+          scope: '@keletes'
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
 
       - name: Typecheck
         run: yarn typecheck
@@ -67,9 +71,13 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+          registry-url: https://npm.pkg.github.com
+          scope: '@keletes'
 
       - name: Install dependencies
         run: yarn install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.PACKAGES_READ_TOKEN }}
 
       - name: Test
         run: yarn test

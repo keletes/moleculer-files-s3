@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { PassThrough, Readable } from "node:stream";
 import { Errors, ServiceBroker } from "moleculer";
 import type { Service } from "moleculer";
-import FilesService, { FileNotFoundError } from "moleculer-files";
+import FilesService, { FileNotFoundError } from "@keletes/moleculer-files";
 import S3Adapter from "../../src";
 import { FakeS3 } from "../fake-s3";
 
