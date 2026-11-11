@@ -33,7 +33,7 @@
 		"node": ">= 22.x.x"
 	},
 	"peerDependencies": {
-		"@keletes/moleculer-files": "^0.3.0",
+		"@keletes/moleculer-files": ">=0.3.0",
 		"moleculer": "^0.14.0"
 	},
 	"dependencies": {
