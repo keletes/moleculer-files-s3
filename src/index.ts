@@ -6,7 +6,7 @@ import { Client } from "minio";
 import type { ClientOptions, ItemBucketMetadata } from "minio";
 import { Errors } from "moleculer";
 import type { Service, ServiceBroker } from "moleculer";
-import type { AdapterSchema, QueryParams } from "moleculer-files";
+import type { AdapterSchema, QueryParams } from "@keletes/moleculer-files";
 
 const { MoleculerError, ServiceSchemaError } = Errors;
 
@@ -203,5 +203,5 @@ declare namespace S3Adapter {
 	}
 }
 
-// `export =`: `require("moleculer-files-s3")` returns the class itself, as before the TypeScript rewrite.
+// `export =`: `require("@keletes/moleculer-files-s3")` returns the class itself, as before the TypeScript rewrite.
 export = S3Adapter;
