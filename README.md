@@ -39,6 +39,7 @@ export default {
 - **`save`**: key is `meta.id`, else `meta.filename`, else a random UUID; existing keys are overwritten. Primitive entries of `meta` (not `$`-prefixed) become user metadata (`x-amz-meta-*`).
   A failing source stream rejects the call and aborts the unfinished multipart upload.
 - **`get`**: readable stream; a missing key is a 404 (`FileNotFoundError` through the mixin).
+- **`stat`** (optional adapter method): one HEAD on the key `get` reads, giving `{ filename, contentType, size, metadata }` (`filename` is the stored `filename` user metadata, else the key; `metadata` the user metadata); `undefined` when the key is missing.
 - **`find`/`count`/`list`**: lists the bucket as `{ _id, name, size, lastModified, etag }`; `prefix`, `limit` and `offset` are supported, other filters are ignored (S3 has none).
 - **`update`**: replaces the object `id`. **`remove`**: deletes it and returns it; missing key is a 404.
 
