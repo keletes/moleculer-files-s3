@@ -16,6 +16,9 @@ const isReadable = (value: unknown): value is NodeJS.ReadableStream =>
 /** S3 error codes of a key that does not exist. HEAD answers carry no body, hence `NotFound`. */
 const MISSING_KEY = new Set(["NoSuchKey", "NotFound"]);
 
+/** System headers the client mixes into `metaData` next to the user metadata. */
+const STANDARD_HEADERS = new Set(["content-type", "cache-control", "content-disposition", "content-encoding", "content-language", "expires"]);
+
 class S3Adapter implements AdapterSchema {
 	endPoint: string;
 	accessKey: string;
@@ -121,6 +124,33 @@ class S3Adapter implements AdapterSchema {
 			}
 			throw err;
 		}
+	}
+
+	/**
+	 * Metadata of the object `id` from one HEAD on the key `findById` reads, `undefined` when it does not exist.
+	 * `filename` is the `filename` user metadata `save` stored, else the key; `metadata` is the user metadata.
+	 */
+	async stat(id: string | number) {
+		const key = String(id);
+		let stat;
+		try {
+			stat = await this.client.statObject(this.collection, key);
+		} catch (err) {
+			if (MISSING_KEY.has((err as { code?: string }).code ?? "")) return undefined;
+			throw err;
+		}
+		const metadata: Record<string, unknown> = {};
+		for (const [name, value] of Object.entries(stat.metaData ?? {})) {
+			if (!STANDARD_HEADERS.has(name.toLowerCase()) && !name.toLowerCase().startsWith("x-amz-")) metadata[name] = value;
+		}
+		const contentType = (stat.metaData as Record<string, unknown> | undefined)?.["content-type"];
+		const stored = metadata.filename;
+		return {
+			filename: typeof stored === "string" && stored ? stored : key,
+			contentType: typeof contentType === "string" ? contentType : undefined,
+			size: stat.size,
+			metadata,
+		};
 	}
 
 	/** Number of objects matching the params (see `find`). */

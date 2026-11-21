@@ -231,6 +231,25 @@ describe("moleculer-files-s3 (against an in-process fake S3 over HTTP)", () => {
 			await expect(adapter.removeById("x")).rejects.toBeDefined();
 		});
 
+		it("stat reads size, type and user metadata with one HEAD", async () => {
+			await save("hello", { id: "k1", filename: "orig.txt", tag: "x", "content-type": "text/plain" });
+			const stat = await adapter.stat("k1");
+			expect(stat).toMatchObject({ filename: "orig.txt", size: 5, contentType: "text/plain" });
+			expect(stat?.metadata).toMatchObject({ tag: "x", filename: "orig.txt" });
+		});
+
+		it("stat falls back to the key and resolves undefined for a missing object", async () => {
+			await save("hi", { id: "k2" });
+			expect((await adapter.stat("k2"))?.filename).toBe("k2");
+			expect(await adapter.stat("nope")).toBeUndefined();
+		});
+
+		it("stat rethrows other errors", async () => {
+			await broker.stop();
+			build({}, "wrong-access");
+			await expect(adapter.stat("k")).rejects.toBeDefined();
+		});
+
 		it("removeMany and clear are placeholders", () => {
 			expect(() => adapter.removeMany()).not.toThrow();
 			expect(() => adapter.clear()).not.toThrow();
