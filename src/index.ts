@@ -206,8 +206,22 @@ class S3Adapter implements AdapterSchema {
 		return { _id: name, name };
 	}
 
-	removeMany(_query?: unknown) {
-		// To be implemented
+	/**
+	 * Deletes the keys with the multi-object delete (`DeleteObjects`), at most 1000 keys per request (the S3 limit;
+	 * the client splits longer lists). Resolves to the ids deleted. A missing key is not an error in S3; any other
+	 * per-key error rejects with the failing keys listed (never the credentials). An empty list makes no request.
+	 */
+	async removeMany(ids: string[]) {
+		const keys = ids.map(String);
+		if (!keys.length) return [];
+		// The client returns the `<Error>` entries of the response as `{ Code, Message, Key }`, its typings say otherwise
+		const results = (await this.client.removeObjects(this.collection, keys)) as unknown as { Code?: string; Message?: string; Key?: string }[];
+		const failed = results.filter((e) => !MISSING_KEY.has(e.Code ?? ""));
+		if (failed.length) {
+			const detail = failed.map((e) => `${e.Key} (${e.Code ?? "unknown"}${e.Message ? `: ${e.Message}` : ""})`).join(", ");
+			throw new MoleculerError(`Could not delete ${failed.length} of ${keys.length} objects: ${detail}`, 500, "ERR_S3_DELETE");
+		}
+		return keys;
 	}
 
 	clear() {

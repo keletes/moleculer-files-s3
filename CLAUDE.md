@@ -1,6 +1,6 @@
 # @keletes/moleculer-files-s3
 
-`@keletes/moleculer-files-s3`: S3 storage driver for [`@keletes/moleculer-files`](https://github.com/keletes/moleculer-files), on the MinIO JS client (v8, works with any S3-compatible endpoint). Used by configurator-cache. Design and usage are in `README.md`.
+`@keletes/moleculer-files-s3`: S3 storage driver for [`@keletes/moleculer-files`](https://github.com/keletes/moleculer-files), on the MinIO JS client (v8, works with any S3-compatible endpoint). Design and usage are in `README.md`.
 
 ## Shape of this repo (like `@keletes/moleculer-db-adapter-mongo`)
 
@@ -21,10 +21,11 @@ CI (`verify.yml`): `verify` (typecheck, lint, build, audit) and `test` are the r
 
 ## Gotchas
 
-- **Tests use `test/fake-s3.ts`**, a small HTTP server speaking just the S3 calls the MinIO client makes (bucket exists/create/location, object put/get/head/delete, listing v1/v2, multipart upload incl. list/abort). It checks the access key in the SigV4 `Authorization` header but not the signature. If a MinIO client upgrade starts calling something else, extend the fake rather than mocking the client.
+- **Tests use `test/fake-s3.ts`**, a small HTTP server speaking just the S3 calls the MinIO client makes (bucket exists/create/location, object put/get/head/delete, multi-object delete, listing v1/v2 with pagination, multipart upload incl. list/abort). It checks the access key in the SigV4 `Authorization` header but not the signature. If a MinIO client upgrade starts calling something else, extend the fake rather than mocking the client.
 - Moleculer copies the adapter instance when it merges the service schema: in tests use `service.adapter`, not the instance you passed in.
-- `require("@keletes/moleculer-files-s3")` returns the class itself (`export =`), as before the TypeScript rewrite: configurator-cache loads it with `require`.
+- `require("@keletes/moleculer-files-s3")` returns the class itself (`export =`), as before the TypeScript rewrite: consumers that load it with `require` get the class.
 - `save` goes through `stream.pipeline` into the upload because the MinIO client ignores errors of the source stream (the upload would hang); on failure the incomplete multipart upload is removed.
+- `removeMany` hands the keys to the client's `removeObjects`, which already splits them into `DeleteObjects` requests of 1000 (S3's limit) and returns only the `<Error>` entries (quiet mode) as `{ Code, Message, Key }`, although its typings say `{ Error }`. `NoSuchKey` entries are ignored; the rest reject, listing the keys. The fake pages listings (`pageSize`) and fails keys on demand (`deleteErrors`).
 - The bucket is the service's `collection`. Objects are addressed by key (`meta.id`, else `meta.filename`, else a UUID); there is no versioning.
 
 ## Releases: trunk-based, Conventional Commits
