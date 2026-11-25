@@ -197,6 +197,17 @@ describe("moleculer-files-s3 (against an in-process fake S3 over HTTP)", () => {
 			expect(rows.map((r) => r.name)).toEqual(["a/1.txt", "a/2.txt"]);
 		});
 
+		it("pages through more than 1000 objects", async () => {
+			const bucket = fake.buckets.get(adapter.collection) as Map<string, unknown>;
+			for (let i = 0; i < 2500; i++) bucket.set(`p/${String(i).padStart(5, "0")}`, { body: Buffer.from("x"), headers: {}, modified: new Date() });
+			fake.requests.length = 0;
+			const rows = (await adapter.find({ prefix: "p/" })) as { name: string }[];
+			expect(rows).toHaveLength(2500);
+			expect(new Set(rows.map((r) => r.name)).size).toBe(2500);
+			expect(fake.requests.filter((r) => r.startsWith("GET") && r.includes("prefix=p%2F"))).toHaveLength(3);
+			expect(await adapter.count({ prefix: "p/" })).toBe(2500);
+		});
+
 		it("counts the objects", async () => {
 			expect(await broker.call("cache.count")).toBe(3);
 			expect(await adapter.count({ prefix: "b/" })).toBe(1);
@@ -250,9 +261,82 @@ describe("moleculer-files-s3 (against an in-process fake S3 over HTTP)", () => {
 			await expect(adapter.stat("k")).rejects.toBeDefined();
 		});
 
-		it("removeMany and clear are placeholders", () => {
-			expect(() => adapter.removeMany()).not.toThrow();
+		it("clear is a placeholder", () => {
 			expect(() => adapter.clear()).not.toThrow();
+		});
+	});
+
+	describe("removeMany", () => {
+		const seed = (count: number) => {
+			const bucket = fake.buckets.get(adapter.collection) as Map<string, unknown>;
+			const ids: string[] = [];
+			for (let i = 0; i < count; i++) {
+				ids.push(`k/${String(i).padStart(5, "0")}`);
+				bucket.set(ids[i], { body: Buffer.from("x"), headers: {}, modified: new Date() });
+			}
+			return { bucket, ids };
+		};
+		const deleteRequests = () => fake.requests.filter((r) => r.startsWith("POST") && r.includes("?delete"));
+
+		beforeEach(() => {
+			fake.requests.length = 0;
+			fake.deleteErrors.clear();
+		});
+
+		it("deletes the keys in one request and resolves to the ids", async () => {
+			const { bucket, ids } = seed(3);
+			expect(await adapter.removeMany(ids.slice(0, 2))).toEqual(ids.slice(0, 2));
+			expect([...bucket.keys()]).toEqual([ids[2]]);
+			expect(deleteRequests()).toHaveLength(1);
+		});
+
+		it("makes no request for an empty list", async () => {
+			expect(await adapter.removeMany([])).toEqual([]);
+			expect(fake.requests).toEqual([]);
+		});
+
+		it("sends 1000 keys in one request", async () => {
+			const { bucket, ids } = seed(1000);
+			expect(await adapter.removeMany(ids)).toHaveLength(1000);
+			expect(bucket.size).toBe(0);
+			expect(deleteRequests()).toHaveLength(1);
+		});
+
+		it("splits 2001 keys into 3 requests", async () => {
+			const { bucket, ids } = seed(2001);
+			expect(await adapter.removeMany(ids)).toEqual(ids);
+			expect(bucket.size).toBe(0);
+			expect(deleteRequests()).toHaveLength(3);
+		});
+
+		it("does not fail on a missing key and handles keys with special characters", async () => {
+			const bucket = fake.buckets.get(adapter.collection) as Map<string, unknown>;
+			bucket.set("a & b <1>.txt", { body: Buffer.from("x"), headers: {}, modified: new Date() });
+			expect(await adapter.removeMany(["a & b <1>.txt", "missing"])).toEqual(["a & b <1>.txt", "missing"]);
+			expect(bucket.size).toBe(0);
+		});
+
+		it("ignores NoSuchKey errors but rejects with the failing keys for any other error", async () => {
+			const { ids } = seed(3);
+			fake.deleteErrors.set(ids[0], "NoSuchKey");
+			expect(await adapter.removeMany(ids)).toEqual(ids);
+
+			fake.deleteErrors.set(ids[1], "AccessDenied");
+			const err = await adapter.removeMany(ids).catch((e) => e);
+			expect(err.message).toContain(ids[1]);
+			expect(err.message).toContain("AccessDenied");
+			expect(err.message).not.toContain(ids[2]);
+			expect(err.message).not.toContain("test-secret");
+		});
+
+		it("reports the failures of every chunk", async () => {
+			const { ids } = seed(2001);
+			fake.deleteErrors.set(ids[5], "InternalError");
+			fake.deleteErrors.set(ids[2000], "InternalError");
+			const err = await adapter.removeMany(ids).catch((e) => e);
+			expect(err.message).toContain("2 of 2001");
+			expect(err.message).toContain(ids[5]);
+			expect(err.message).toContain(ids[2000]);
 		});
 	});
 });

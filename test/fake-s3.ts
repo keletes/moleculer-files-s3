@@ -24,6 +24,10 @@ const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").
 export class FakeS3 {
 	buckets = new Map<string, Map<string, StoredObject>>();
 	requests: string[] = [];
+	/** Keys the multi-object delete refuses, with the S3 error code reported for them. */
+	deleteErrors = new Map<string, string>();
+	/** Keys per listing page (S3 caps it at 1000). */
+	pageSize = 1000;
 	/** Multipart uploads started and not completed or aborted. */
 	uploads = new Map<string, Upload>();
 	private uploadSeq = 0;
@@ -93,6 +97,7 @@ export class FakeS3 {
 					.join("");
 				return res.end(xml(`<ListMultipartUploadsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Bucket>${bucketName}</Bucket><IsTruncated>false</IsTruncated>${pending}</ListMultipartUploadsResult>`));
 			}
+			if (method === "POST" && url.searchParams.has("delete")) return this.deleteMany(bucket, body, res);
 			if (method === "GET") return this.list(url, bucket, res);
 			return this.error(res, 405, "MethodNotAllowed", method);
 		}
@@ -159,9 +164,31 @@ export class FakeS3 {
 		res.end(head ? undefined : obj.body);
 	}
 
+	/** `DeleteObjects` in quiet mode: only the failures are reported. Deleting a missing key succeeds. */
+	private deleteMany(bucket: Map<string, StoredObject>, body: Buffer, res: http.ServerResponse) {
+		const keys = [...body.toString().matchAll(/<Key>([\s\S]*?)<\/Key>/g)].map((m) =>
+			m[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&apos;/g, "'").replace(/&amp;/g, "&"),
+		);
+		if (keys.length > 1000) return this.error(res, 400, "MalformedXML", "At most 1000 keys per request");
+		let errors = "";
+		for (const key of keys) {
+			const code = this.deleteErrors.get(key);
+			if (code) errors += `<Error><Key>${escapeXml(key)}</Key><Code>${code}</Code><Message>${code} for ${escapeXml(key)}</Message></Error>`;
+			else bucket.delete(key);
+		}
+		res.setHeader("Content-Type", "application/xml");
+		res.end(xml(`<DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">${errors}</DeleteResult>`));
+	}
+
 	private list(url: URL, bucket: Map<string, StoredObject>, res: http.ServerResponse) {
 		const prefix = url.searchParams.get("prefix") ?? "";
-		const keys = [...bucket.keys()].filter((k) => k.startsWith(prefix)).sort();
+		const v2 = url.searchParams.get("list-type") === "2";
+		const after = (v2 ? url.searchParams.get("continuation-token") : url.searchParams.get("marker")) ?? "";
+		const all = [...bucket.keys()].filter((k) => k.startsWith(prefix) && k > after).sort();
+		const keys = all.slice(0, this.pageSize);
+		const truncated = all.length > keys.length;
+		// The continuation token is the last key returned; v1 without a delimiter has no NextMarker, the client uses the last key
+		const next = truncated && v2 ? `<NextContinuationToken>${escapeXml(keys[keys.length - 1])}</NextContinuationToken>` : "";
 		const contents = keys
 			.map((k) => {
 				const o = bucket.get(k) as StoredObject;
@@ -169,12 +196,11 @@ export class FakeS3 {
 				return `<Contents><Key>${encodeURIComponent(k)}</Key><LastModified>${o.modified.toISOString()}</LastModified><ETag>"${etag}"</ETag><Size>${o.body.length}</Size><StorageClass>STANDARD</StorageClass></Contents>`;
 			})
 			.join("");
-		const v2 = url.searchParams.get("list-type") === "2";
 		res.setHeader("Content-Type", "application/xml");
 		res.end(
 			xml(
 				`<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>bucket</Name><Prefix>${escapeXml(prefix)}</Prefix>` +
-					`${v2 ? `<KeyCount>${keys.length}</KeyCount>` : ""}<MaxKeys>1000</MaxKeys><EncodingType>url</EncodingType><IsTruncated>false</IsTruncated>${contents}</ListBucketResult>`,
+					`${v2 ? `<KeyCount>${keys.length}</KeyCount>` : ""}<MaxKeys>1000</MaxKeys><EncodingType>url</EncodingType><IsTruncated>${truncated}</IsTruncated>${next}${contents}</ListBucketResult>`,
 			),
 		);
 	}

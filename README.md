@@ -41,6 +41,7 @@ export default {
 - **`get`**: readable stream; a missing key is a 404 (`FileNotFoundError` through the mixin).
 - **`stat`** (optional adapter method): one HEAD on the key `get` reads, giving `{ filename, contentType, size, metadata }` (`filename` is the stored `filename` user metadata, else the key; `metadata` the user metadata); `undefined` when the key is missing.
 - **`find`/`count`/`list`**: lists the bucket as `{ _id, name, size, lastModified, etag }`; `prefix`, `limit` and `offset` are supported, other filters are ignored (S3 has none).
+- **`removeMany(ids)`** (optional adapter method): deletes the keys with S3 `DeleteObjects`, at most 1000 keys per request (longer lists are split), and resolves to the ids. A missing key is not an error; any other per-key error rejects with the failing keys listed. An empty list makes no request.
 - **`update`**: replaces the object `id`. **`remove`**: deletes it and returns it; missing key is a 404.
 
 ### Changes from 0.1.x
