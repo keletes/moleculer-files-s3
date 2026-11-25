@@ -26,6 +26,7 @@ CI (`verify.yml`): `verify` (typecheck, lint, build, audit) and `test` are the r
 - `require("@keletes/moleculer-files-s3")` returns the class itself (`export =`), as before the TypeScript rewrite: consumers that load it with `require` get the class.
 - `save` goes through `stream.pipeline` into the upload because the MinIO client ignores errors of the source stream (the upload would hang); on failure the incomplete multipart upload is removed.
 - `removeMany` hands the keys to the client's `removeObjects`, which already splits them into `DeleteObjects` requests of 1000 (S3's limit) and returns only the `<Error>` entries (quiet mode) as `{ Code, Message, Key }`, although its typings say `{ Error }`. `NoSuchKey` entries are ignored; the rest reject, listing the keys. The fake pages listings (`pageSize`) and fails keys on demand (`deleteErrors`).
+- Structured user metadata: `save` stores object/array values as ASCII-only JSON (non-ASCII as `\uXXXX`) and lists their lowercase keys in the reserved `json-keys` entry; `stat` decodes only the listed keys, so a string that merely looks like JSON stays a string (a prefix on the value would be ambiguous with real strings). Over S3's 2 KB metadata limit the largest JSON values are dropped with a logger warning, never failing the upload. The fake stores the headers as sent, so tests read them from `fake.buckets`.
 - The bucket is the service's `collection`. Objects are addressed by key (`meta.id`, else `meta.filename`, else a UUID); there is no versioning.
 
 ## Releases: trunk-based, Conventional Commits

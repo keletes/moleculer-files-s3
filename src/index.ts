@@ -19,6 +19,17 @@ const MISSING_KEY = new Set(["NoSuchKey", "NotFound"]);
 /** System headers the client mixes into `metaData` next to the user metadata. */
 const STANDARD_HEADERS = new Set(["content-type", "cache-control", "content-disposition", "content-encoding", "content-language", "expires"]);
 
+/** User metadata key listing (as a JSON array of lowercase key names) the values that hold encoded JSON. */
+const JSON_KEYS = "json-keys";
+
+/** S3 limit for all user metadata of an object (key names plus values), in bytes. */
+const MAX_METADATA_BYTES = 2048;
+
+/** JSON text restricted to printable ASCII (S3 user metadata is ASCII header text): other characters become `\uXXXX`. */
+const encodeJson = (value: unknown) => JSON.stringify(value).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
+const metadataSize = (entries: Record<string, string>) => Object.entries(entries).reduce((sum, [k, v]) => sum + Buffer.byteLength(k) + Buffer.byteLength(v), 0);
+
 class S3Adapter implements AdapterSchema {
 	endPoint: string;
 	accessKey: string;
@@ -143,6 +154,12 @@ class S3Adapter implements AdapterSchema {
 		for (const [name, value] of Object.entries(stat.metaData ?? {})) {
 			if (!STANDARD_HEADERS.has(name.toLowerCase()) && !name.toLowerCase().startsWith("x-amz-")) metadata[name] = value;
 		}
+		// Only the keys the companion entry lists are decoded; every other value stays a string
+		const encoded = metadata[JSON_KEYS];
+		delete metadata[JSON_KEYS];
+		for (const name of typeof encoded === "string" ? safeParseList(encoded) : []) {
+			if (typeof metadata[name] === "string") metadata[name] = safeParse(metadata[name] as string);
+		}
 		const contentType = (stat.metaData as Record<string, unknown> | undefined)?.["content-type"];
 		const stored = metadata.filename;
 		return {
@@ -160,21 +177,35 @@ class S3Adapter implements AdapterSchema {
 
 	/**
 	 * Uploads the stream as `meta.id` (else `meta.filename`, else a random UUID). The primitive entries of `meta`
-	 * (not the `$`-prefixed Moleculer ones) become the object's user metadata.
+	 * (not the `$`-prefixed Moleculer ones) become the object's user metadata as strings. Object and array values are
+	 * stored as JSON in printable ASCII and listed in the reserved `json-keys` entry so `stat` can decode them. When
+	 * all metadata would pass S3's 2 KB limit, those JSON values are dropped, largest first (logged as a warning);
+	 * metadata never fails the upload.
 	 */
 	async save(entity: NodeJS.ReadableStream, meta: Record<string, unknown> = {}) {
 		if (!isReadable(entity)) throw new MoleculerError("Entity is not a stream", 400, "E_BAD_REQUEST");
 
 		const filename = String(meta.id || meta.filename || randomUUID());
 		const metaData: ItemBucketMetadata = {};
+		const json: Record<string, string> = {};
 		for (const [key, value] of Object.entries(meta)) {
-			if (!key.startsWith("$") && ["string", "number", "boolean"].includes(typeof value)) metaData[key] = String(value);
+			if (key.startsWith("$") || key.toLowerCase() === JSON_KEYS) continue;
+			if (["string", "number", "boolean"].includes(typeof value)) metaData[key] = String(value);
+			else if (typeof value === "object" && value !== null) json[key.toLowerCase()] = encodeJson(value);
 		}
+		const dropped: string[] = [];
+		const withJson = () => (Object.keys(json).length ? { ...metaData, ...json, [JSON_KEYS]: JSON.stringify(Object.keys(json)) } : metaData);
+		while (Object.keys(json).length && metadataSize(withJson() as Record<string, string>) > MAX_METADATA_BYTES) {
+			const [largest] = Object.entries(json).sort((a, b) => b[1].length - a[1].length)[0];
+			delete json[largest];
+			dropped.push(largest);
+		}
+		if (dropped.length) this.service.logger.warn(`Metadata of \`${filename}\` over the S3 limit of ${MAX_METADATA_BYTES} bytes, not stored: ${dropped.join(", ")}.`);
 
 		// The client does not watch the source for errors (a failing source would leave the upload hanging), so the
 		// source goes through `pipeline`, which rejects on the first error of either side.
 		const body = new PassThrough();
-		const upload = this.client.putObject(this.collection, filename, body, undefined, metaData);
+		const upload = this.client.putObject(this.collection, filename, body, undefined, withJson());
 		upload.catch(() => undefined);
 		try {
 			const [, result] = await Promise.all([pipeline(entity as NodeJS.ReadableStream & Readable, body), upload]);
@@ -228,6 +259,19 @@ class S3Adapter implements AdapterSchema {
 		// To be implemented
 	}
 }
+
+const safeParse = (text: string): unknown => {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return text;
+	}
+};
+
+const safeParseList = (text: string): string[] => {
+	const list = safeParse(text);
+	return Array.isArray(list) ? list.filter((k): k is string => typeof k === "string") : [];
+};
 
 interface ObjectEntry {
 	_id: string;
