@@ -120,12 +120,12 @@ describe("moleculer-files-s3 (against an in-process fake S3 over HTTP)", () => {
 			expect((await get("dir/sub dir/file name.txt")).toString()).toBe("nested");
 		});
 
-		it("stores primitive metadata as user metadata and skips Moleculer internals and objects", async () => {
-			await save("m", { id: "m.txt", owner: "me", count: 3, flag: true, $requestID: "r", nested: { a: 1 } });
+		it("stores primitive metadata as user metadata and skips Moleculer internals and null", async () => {
+			await save("m", { id: "m.txt", owner: "me", count: 3, flag: true, $requestID: "r", empty: null });
 			const bucket = fake.buckets.get(adapter.collection);
 			const headers = bucket?.get("m.txt")?.headers;
 			expect(headers).toMatchObject({ "x-amz-meta-owner": "me", "x-amz-meta-count": "3", "x-amz-meta-flag": "true" });
-			expect(Object.keys(headers ?? {}).some((h) => h.includes("requestid") || h.includes("nested"))).toBe(false);
+			expect(Object.keys(headers ?? {}).some((h) => h.includes("requestid") || h.includes("empty") || h.includes("json-keys"))).toBe(false);
 		});
 
 		it("overwrites on update and takes the id as the name", async () => {
@@ -247,6 +247,40 @@ describe("moleculer-files-s3 (against an in-process fake S3 over HTTP)", () => {
 			const stat = await adapter.stat("k1");
 			expect(stat).toMatchObject({ filename: "orig.txt", size: 5, contentType: "text/plain" });
 			expect(stat?.metadata).toMatchObject({ tag: "x", filename: "orig.txt" });
+		});
+
+		it("stores object and array metadata as ASCII JSON and stat decodes them", async () => {
+			const doc = { name: "Città – 日本語 😀", list: [1, "é", { deep: true }] };
+			await save("m", { id: "j1", Tags: ["a", "è"], doc, plain: "x", n: 3 });
+			const headers = fake.buckets.get(adapter.collection)?.get("j1")?.headers ?? {};
+			// eslint-disable-next-line no-control-regex
+			expect(Object.values(headers).every((v) => /^[\x20-\x7e]*$/.test(v))).toBe(true);
+			expect(headers["x-amz-meta-doc"]).toContain("\\u00e0");
+			expect(headers["x-amz-meta-json-keys"]).toBe("[\"tags\",\"doc\"]");
+			const { metadata } = (await adapter.stat("j1")) as { metadata: Record<string, unknown> };
+			expect(metadata).toEqual({ id: "j1", tags: ["a", "è"], doc, plain: "x", n: "3" });
+		});
+
+		it("keeps a string that merely looks like JSON as a string", async () => {
+			await save("m", { id: "j2", looks: "{\"a\":1}", arr: "[1,2]", real: { a: 1 } });
+			const { metadata } = (await adapter.stat("j2")) as { metadata: Record<string, unknown> };
+			expect(metadata).toEqual({ id: "j2", looks: "{\"a\":1}", arr: "[1,2]", real: { a: 1 } });
+		});
+
+		it("ignores a user-supplied json-keys entry", async () => {
+			await save("m", { id: "j3", "json-keys": "[\"a\"]", a: "[1]" });
+			const { metadata } = (await adapter.stat("j3")) as { metadata: Record<string, unknown> };
+			expect(metadata).toEqual({ id: "j3", a: "[1]" });
+		});
+
+		it("drops JSON metadata over 2 KB, largest first, warns and still uploads", async () => {
+			const warn = jest.spyOn(adapter.service.logger, "warn").mockImplementation(() => undefined);
+			await save("body", { id: "j4", keep: { s: "x" }, big: { s: "y".repeat(1500) }, bigger: { s: "z".repeat(1800) } });
+			expect(warn).toHaveBeenCalledWith(expect.stringContaining("bigger"));
+			expect((await get("j4")).toString()).toBe("body");
+			const { metadata } = (await adapter.stat("j4")) as { metadata: Record<string, unknown> };
+			expect(metadata).toEqual({ id: "j4", keep: { s: "x" }, big: { s: "y".repeat(1500) } });
+			warn.mockRestore();
 		});
 
 		it("stat falls back to the key and resolves undefined for a missing object", async () => {
