@@ -141,6 +141,28 @@ describe("moleculer-files-s3 (against an in-process fake S3 over HTTP)", () => {
 		});
 	});
 
+	describe("save result", () => {
+		it("resolves to the stored file's details, matching stat", async () => {
+			const doc = { name: "Città", list: [1] };
+			const result = await broker.call("cache.save", Readable.from([Buffer.from("hello")]), {
+				meta: { id: "d1", filename: "orig.txt", "content-type": "text/plain", tag: "x", doc },
+			});
+			expect(result).toEqual({
+				id: "d1",
+				filename: "orig.txt",
+				contentType: "text/plain",
+				size: 5,
+				metadata: { id: "d1", filename: "orig.txt", "content-type": "text/plain", tag: "x", doc },
+			});
+			expect(((await adapter.stat("d1")) as { metadata: unknown }).metadata).toMatchObject({ tag: "x", doc });
+		});
+
+		it("falls back to the key as filename and updateById resolves the same", async () => {
+			const result = await adapter.updateById(Readable.from([Buffer.from("zz")]), "d2");
+			expect(result).toMatchObject({ id: "d2", filename: "d2", size: 2 });
+		});
+	});
+
 	describe("errors", () => {
 		it("get of a missing key is a 404 FileNotFoundError", async () => {
 			await expect(broker.call("cache.get", { id: "nope" })).rejects.toBeInstanceOf(FileNotFoundError);
