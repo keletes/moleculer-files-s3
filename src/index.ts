@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PassThrough } from "node:stream";
+import { PassThrough, Transform } from "node:stream";
 import type { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { Client } from "minio";
@@ -29,6 +29,15 @@ const MAX_METADATA_BYTES = 2048;
 const encodeJson = (value: unknown) => JSON.stringify(value).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 
 const metadataSize = (entries: Record<string, string>) => Object.entries(entries).reduce((sum, [k, v]) => sum + Buffer.byteLength(k) + Buffer.byteLength(v), 0);
+
+/** Details of a stored file (the shape of `moleculer-files`' `FileDetails`; the installed version does not export it yet). */
+interface FileDetails {
+	id: string;
+	filename: string;
+	contentType?: string;
+	size?: number;
+	metadata?: Record<string, unknown>;
+}
 
 class S3Adapter implements AdapterSchema {
 	endPoint: string;
@@ -180,9 +189,10 @@ class S3Adapter implements AdapterSchema {
 	 * (not the `$`-prefixed Moleculer ones) become the object's user metadata as strings. Object and array values are
 	 * stored as JSON in printable ASCII and listed in the reserved `json-keys` entry so `stat` can decode them. When
 	 * all metadata would pass S3's 2 KB limit, those JSON values are dropped, largest first (logged as a warning);
-	 * metadata never fails the upload.
+	 * metadata never fails the upload. Resolves to the stored file's `FileDetails` (the key as `id`, the bytes
+	 * uploaded as `size`, `metadata` as `stat` returns it), without an extra request.
 	 */
-	async save(entity: NodeJS.ReadableStream, meta: Record<string, unknown> = {}) {
+	async save(entity: NodeJS.ReadableStream, meta: Record<string, unknown> = {}): Promise<FileDetails> {
 		if (!isReadable(entity)) throw new MoleculerError("Entity is not a stream", 400, "E_BAD_REQUEST");
 
 		const filename = String(meta.id || meta.filename || randomUUID());
@@ -205,11 +215,31 @@ class S3Adapter implements AdapterSchema {
 		// The client does not watch the source for errors (a failing source would leave the upload hanging), so the
 		// source goes through `pipeline`, which rejects on the first error of either side.
 		const body = new PassThrough();
+		let size = 0;
+		// Counting in a transform: a `data` listener on `body` would start it flowing before the client reads it
+		const counter = new Transform({
+			transform(chunk: Buffer, _enc, done) {
+				size += chunk.length;
+				done(null, chunk);
+			},
+		});
 		const upload = this.client.putObject(this.collection, filename, body, undefined, withJson());
 		upload.catch(() => undefined);
 		try {
-			const [, result] = await Promise.all([pipeline(entity as NodeJS.ReadableStream & Readable, body), upload]);
-			return result;
+			await Promise.all([pipeline(entity as NodeJS.ReadableStream & Readable, counter, body), upload]);
+			// Same form as `stat`: lowercase keys, primitives as strings, JSON values decoded
+			const metadata: Record<string, unknown> = {};
+			for (const [key, value] of Object.entries(metaData)) metadata[key.toLowerCase()] = value;
+			for (const [key, value] of Object.entries(json)) metadata[key] = JSON.parse(value);
+			const stored = metadata.filename;
+			const contentType = metadata["content-type"];
+			return {
+				id: filename,
+				filename: typeof stored === "string" && stored ? stored : filename,
+				contentType: typeof contentType === "string" ? contentType : undefined,
+				size,
+				metadata,
+			};
 		} catch (err) {
 			body.destroy();
 			// Drop the parts already sent of the unfinished multipart upload

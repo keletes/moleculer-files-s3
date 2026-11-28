@@ -37,6 +37,7 @@ export default {
 ## Behaviour
 
 - **`save`**: key is `meta.id`, else `meta.filename`, else a random UUID; existing keys are overwritten. Primitive entries of `meta` (not `$`-prefixed) become user metadata (`x-amz-meta-*`) as strings. Object and array values are stored as JSON with every character outside printable ASCII escaped as `\uXXXX` (S3 user metadata is ASCII header text), and their lowercase key names are listed as a JSON array in the reserved `json-keys` entry (a `json-keys` in `meta` is ignored). S3 allows 2 KB of user metadata per object (key names plus values): when the total would exceed it, the JSON values are dropped, largest first, and a warning names them through the service logger; metadata never fails the upload.
+  Resolves to `{ id, filename, contentType, size, metadata }` of the stored object: `id` the key, `size` the bytes uploaded, `metadata` as `stat` returns it (no extra request). `update` resolves the same.
   A failing source stream rejects the call and aborts the unfinished multipart upload.
 - **`get`**: readable stream; a missing key is a 404 (`FileNotFoundError` through the mixin).
 - **`stat`** (optional adapter method): one HEAD on the key `get` reads, giving `{ filename, contentType, size, metadata }` (`filename` is the stored `filename` user metadata, else the key; `metadata` the user metadata: values listed in `json-keys` are decoded back to objects and arrays, all others stay strings; keys come back lowercase, as S3 stores them); `undefined` when the key is missing.
